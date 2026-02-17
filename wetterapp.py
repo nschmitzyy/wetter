@@ -1,13 +1,14 @@
 import streamlit as st
 import numpy as np
+import os
 from keras.models import load_model
 from PIL import Image, ImageOps
 
 # ---------------------------------------------------
-# Streamlit Seiteneinstellungen
+# Seitenkonfiguration
 # ---------------------------------------------------
 st.set_page_config(
-    page_title="Wetter Klassifikator",
+    page_title="🌦️ Wetter Klassifikator",
     page_icon="🌦️",
     layout="centered"
 )
@@ -16,17 +17,32 @@ st.title("🌦️ Wetter Klassifikator")
 st.markdown("Lade ein Bild hoch und finde heraus, ob du rausgehen solltest!")
 
 # ---------------------------------------------------
-# Modell laden (Caching für Performance)
+# Modell sicher laden (Cloud-kompatibel)
 # ---------------------------------------------------
 @st.cache_resource
 def load_teachable_model():
-    model = load_model("keras_Model.h5", compile=False)
-    return model
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(BASE_DIR, "keras_Model.h5")
+    
+    if not os.path.exists(model_path):
+        st.error("❌ Modell-Datei 'keras_Model.h5' nicht gefunden!")
+        st.stop()
+
+    return load_model(model_path, compile=False)
 
 model = load_teachable_model()
 
+# ---------------------------------------------------
 # Labels laden
-class_names = open("labels.txt", "r", encoding="utf-8").readlines()
+# ---------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+labels_path = os.path.join(BASE_DIR, "labels.txt")
+
+if not os.path.exists(labels_path):
+    st.error("❌ labels.txt nicht gefunden!")
+    st.stop()
+
+class_names = open(labels_path, "r", encoding="utf-8").readlines()
 
 # ---------------------------------------------------
 # Bild Upload
@@ -37,37 +53,31 @@ uploaded_file = st.file_uploader(
 )
 
 # ---------------------------------------------------
-# Vorhersage-Logik (Original Teachable Machine)
+# Vorhersage
 # ---------------------------------------------------
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
 
+    image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Hochgeladenes Bild", use_container_width=True)
 
-    # Array mit korrekter Form erstellen
+    # Teachable Machine Preprocessing
     data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 
-    # Bild zuschneiden & skalieren (wie im Originalcode)
     size = (224, 224)
-    image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
+    image_resized = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
 
-    # Bild in NumPy Array umwandeln
-    image_array = np.asarray(image)
-
-    # Normalisieren
+    image_array = np.asarray(image_resized)
     normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
 
-    # In Datenarray laden
     data[0] = normalized_image_array
 
-    # Vorhersage
+    # Prediction
     prediction = model.predict(data)
     index = np.argmax(prediction)
-    class_name = class_names[index]
     confidence_score = float(prediction[0][index])
 
-    # Entfernt die führende Zahl aus labels.txt (z.B. "0 gutes Wetter")
-    class_label = class_name[2:].strip()
+    # Label bereinigen (z.B. "0 gutes Wetter")
+    class_label = class_names[index][2:].strip()
 
     st.markdown("---")
     st.subheader("🔎 Vorhersage")
@@ -78,10 +88,9 @@ if uploaded_file is not None:
     else:
         st.warning("🌧️ **Lieber drinnen bleiben!**")
 
-    # Confidence Anzeige
     st.info(f"Confidence Score: **{confidence_score * 100:.2f}%**")
 
-    # Optional: Wahrscheinlichkeiten anzeigen
+    # Wahrscheinlichkeiten anzeigen
     st.markdown("### 📊 Wahrscheinlichkeiten")
     for i, prob in enumerate(prediction[0]):
         label = class_names[i][2:].strip()
