@@ -22,10 +22,10 @@ st.markdown("Lade ein Bild hoch und finde heraus, ob du rausgehen solltest!")
 @st.cache_resource
 def load_teachable_model():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(BASE_DIR, "keras_Model.h5")
+    model_path = os.path.join(BASE_DIR, "keras_model.h5")
     
     if not os.path.exists(model_path):
-        st.error("❌ Modell-Datei 'keras_Model.h5' nicht gefunden!")
+        st.error("❌ Modell-Datei 'keras_model.h5' nicht gefunden!")
         st.stop()
 
     return load_model(model_path, compile=False)
